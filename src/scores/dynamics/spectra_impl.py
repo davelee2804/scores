@@ -26,8 +26,8 @@ def _zonal_filter(_data, longitude_name, zonal_filter_width):
     width L spanning theta_l to theta_r the filter value is 0 at the zonal domain endpoints (theta_l and theta_r) and
     1 at theta_l + L/zonal_filter_width and theta_r - L/zonal_filter_width, with theta_l < theta_r.
     """
-    n_lon = len(_data.longitude)
-    L_theta = np.max(_data.longitude.values) - np.min(_data.longitude.values)
+    n_lon = len(_data[longitude_name])
+    L_theta = np.max(_data[longitude_name].values) - np.min(_data[longitude_name].values)
     d_theta = L_theta / (n_lon - 1)
     L = n_lon * d_theta
     if L < 360.0 - 1.0e-6:
@@ -36,19 +36,19 @@ def _zonal_filter(_data, longitude_name, zonal_filter_width):
         if zonal_filter_width >= 0.5:
             raise error_msg
 
-        theta_l = np.min(_data.longitude.values)
+        theta_l = np.min(_data[longitude_name].values)
         theta_r = theta_l + L
-        filter_l = 0.5 * (1.0 - np.cos(np.pi * (_data.longitude.values - theta_l) / (zonal_filter_width * L)))
-        filter_r = 0.5 * (1.0 - np.cos(np.pi * (theta_r - _data.longitude.values) / (zonal_filter_width * L)))
-        mask_l = _data.longitude.values < theta_l + zonal_filter_width * L
-        mask_r = _data.longitude.values > theta_r - zonal_filter_width * L
+        filter_l = 0.5 * (1.0 - np.cos(np.pi * (_data[longitude_name].values - theta_l) / (zonal_filter_width * L)))
+        filter_r = 0.5 * (1.0 - np.cos(np.pi * (theta_r - _data[longitude_name].values) / (zonal_filter_width * L)))
+        mask_l = _data[longitude_name].values < theta_l + zonal_filter_width * L
+        mask_r = _data[longitude_name].values > theta_r - zonal_filter_width * L
         filter_1d = np.ones(n_lon)
         filter_1d[mask_l] = filter_l[mask_l]
         filter_1d[mask_r] = filter_r[mask_r]
         filter_xr = xr.DataArray(
             filter_1d,
             dims=[longitude_name],
-            coords={longitude_name: _data.longitude},
+            coords={longitude_name: _data[longitude_name]},
         )
         _dims = _data.dims
         _data = (filter_xr * _data).transpose(*_dims)
@@ -78,7 +78,7 @@ def _reduce_dims(_data, reduce_vertical, reduce_time, pressure_level_name, time_
 
     # average over the time dimension
     nt = len(_data.time)
-    if reduce_time:
+    if reduce_time and nt >= 1:
         _data = _data.sum(dim=time_name) / nt
 
     return _data
@@ -148,7 +148,7 @@ def power_spectra_scalar(
         _data, n_lon, L = _zonal_filter(_data, longitude_name, zonal_filter_width)
 
         # ensure that the wavelengths are consistent for each latitude
-        cos_theta_inv = 1.0 / np.cos(_data.latitude.values)
+        cos_theta_inv = 1.0 / np.cos(_data[latitude_name].values)
         equator_freq = np.fft.rfftfreq(n_lon, L / 2.0 / np.pi)
         freq_2d = cos_theta_inv[:, None] * equator_freq[None, :]
         freq_2d = xr.DataArray(freq_2d, dims=(latitude_name, "wavenumber"))
@@ -183,7 +183,7 @@ def power_spectra_scalar(
             ds = ds.assign_coords(time=_data.time)
         if pressure_level_name in _data.dims and not reduce_vertical:
             ds = ds.assign_coords(level=_data.level)
-        ds = ds.assign_coords(latitude=_data.latitude)
+        ds = ds.assign_coords(latitude=_data[latitude_name])
         ds = ds.assign_coords(wavenumber=fft_lon.wavenumber)
 
         return ds
@@ -250,17 +250,6 @@ def power_spectra_vector(
         raise error_msg
 
     else:
-        _data, n_lon, L = _zonal_filter(_data, longitude_name, zonal_filter_width)
-
-        # ensure that the wavelengths are consistent for each latitude
-        cos_theta_inv = 1.0 / np.cos(_data.latitude.values)
-        equator_freq = np.fft.rfftfreq(n_lon, L / 2.0 / np.pi)
-        freq_2d = cos_theta_inv[:, None] * equator_freq[None, :]
-        freq_2d = xr.DataArray(freq_2d, dims=(latitude_name, "wavenumber"))
-
-        if dask != "Unavailable":  # pragma: no cover
-            _data = _data.compute()
-
         error_msg = ValueError(f"NaN value found in field: {zonal_velocity_name}.")
         if np.any(np.isnan(data[zonal_velocity_name].as_numpy())):
             raise error_msg
@@ -268,6 +257,17 @@ def power_spectra_vector(
         error_msg = ValueError(f"NaN value found in field: {meridional_velocity_name}.")
         if np.any(np.isnan(data[meridional_velocity_name].as_numpy())):
             raise error_msg
+
+        _data, n_lon, L = _zonal_filter(_data, longitude_name, zonal_filter_width)
+
+        # ensure that the wavelengths are consistent for each latitude
+        cos_theta_inv = 1.0 / np.cos(_data[latitude_name].values)
+        equator_freq = np.fft.rfftfreq(n_lon, L / 2.0 / np.pi)
+        freq_2d = np.outer(cos_theta_inv, equator_freq)
+        freq_2d = xr.DataArray(freq_2d, dims=(latitude_name, "wavenumber"))
+
+        if dask != "Unavailable":  # pragma: no cover
+            _data = _data.compute()
 
         lon_index = _data[zonal_velocity_name].get_axis_num(longitude_name)
         fft_lon_u = xr.apply_ufunc(
@@ -301,7 +301,7 @@ def power_spectra_vector(
             ds = ds.assign_coords(time=_data.time)
         if pressure_level_name in _data.dims and not reduce_vertical:
             ds = ds.assign_coords(level=_data.level)
-        ds = ds.assign_coords(latitude=_data.latitude)
+        ds = ds.assign_coords(latitude=_data[latitude_name])
         ds = ds.assign_coords(wavenumber=fft_lon.wavenumber)
 
         return ds
