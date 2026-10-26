@@ -31,17 +31,22 @@ def _zonal_filter(_data, longitude_name, zonal_filter_width):
     d_theta = L_theta / (n_lon - 1)
     L = n_lon * d_theta
     if L < 360.0 - 1.0e-6:
-        # regional domain, apply cosine bell filtering
+        # regional domain, apply cosine bell (Tukey) filtering, as in:
+        # https://en.wikipedia.org/wiki/Window_function#Tukey_window
         error_msg = ValueError(f"The zonal_filter_width is: {zonal_filter_width}, must be < 0.5.")
         if zonal_filter_width >= 0.5:
             raise error_msg
 
         theta_l = np.min(_data[longitude_name].values)
-        theta_r = theta_l + L
-        filter_l = 0.5 * (1.0 - np.cos(np.pi * (_data[longitude_name].values - theta_l) / (zonal_filter_width * L)))
-        filter_r = 0.5 * (1.0 - np.cos(np.pi * (theta_r - _data[longitude_name].values) / (zonal_filter_width * L)))
-        mask_l = _data[longitude_name].values < theta_l + zonal_filter_width * L
-        mask_r = _data[longitude_name].values > theta_r - zonal_filter_width * L
+        theta_r = np.max(_data[longitude_name].values)
+        filter_l = 0.5 * (
+            1.0 - np.cos(np.pi * (_data[longitude_name].values - theta_l) / (zonal_filter_width * L_theta))
+        )
+        filter_r = 0.5 * (
+            1.0 - np.cos(np.pi * (theta_r - _data[longitude_name].values) / (zonal_filter_width * L_theta))
+        )
+        mask_l = _data[longitude_name].values < theta_l + zonal_filter_width * L_theta
+        mask_r = _data[longitude_name].values > theta_r - zonal_filter_width * L_theta
         filter_1d = np.ones(n_lon)
         filter_1d[mask_l] = filter_l[mask_l]
         filter_1d[mask_r] = filter_r[mask_r]
