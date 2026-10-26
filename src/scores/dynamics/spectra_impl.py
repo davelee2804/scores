@@ -27,7 +27,9 @@ def _zonal_filter(_data, longitude_name, zonal_filter_width):
     1 at theta_l + L/zonal_filter_width and theta_r - L/zonal_filter_width, with theta_l < theta_r.
     """
     n_lon = len(_data[longitude_name])
-    L_theta = np.max(_data[longitude_name].values) - np.min(_data[longitude_name].values)
+    theta_l = np.min(_data[longitude_name].values)
+    theta_r = np.max(_data[longitude_name].values)
+    L_theta = theta_r - theta_l
     d_theta = L_theta / (n_lon - 1)
     L = n_lon * d_theta
     if L < 360.0 - 1.0e-6:
@@ -37,8 +39,6 @@ def _zonal_filter(_data, longitude_name, zonal_filter_width):
         if zonal_filter_width >= 0.5:
             raise error_msg
 
-        theta_l = np.min(_data[longitude_name].values)
-        theta_r = np.max(_data[longitude_name].values)
         filter_l = 0.5 * (
             1.0 - np.cos(np.pi * (_data[longitude_name].values - theta_l) / (zonal_filter_width * L_theta))
         )
@@ -61,10 +61,14 @@ def _zonal_filter(_data, longitude_name, zonal_filter_width):
     return _data, n_lon, L
 
 
-def _reduce_dims(_data, reduce_vertical, reduce_time, pressure_level_name, time_name, vertical_weights, constants):
+def _reduce_dims(data, reduce_vertical, reduce_time, pressure_level_name, time_name, vertical_weights, constants):
     """
     Average data in the vertical and temporal dimensions if specified
     """
+
+    # copy the data into a new xarray object so that we are not performing reductions on the original data
+    _data = data.copy(deep=True)
+
     # average over the vertical dimension (pressure levels)
     if reduce_vertical and len(_data.level.values) > 1:
         if vertical_weights is not None:
@@ -137,10 +141,8 @@ def power_spectra_scalar(
             space, and the corresponding frequencies.
     """
 
-    _data = data.copy(deep=True)
-
     _data = _reduce_dims(
-        _data, reduce_vertical, reduce_time, pressure_level_name, time_name, vertical_weights, constants
+        data, reduce_vertical, reduce_time, pressure_level_name, time_name, vertical_weights, constants
     )
 
     if spherical_harmonic:
@@ -242,10 +244,8 @@ def power_spectra_vector(
             space, and the corresponding frequencies.
     """
 
-    _data = data.copy(deep=True)
-
     _data = _reduce_dims(
-        _data, reduce_vertical, reduce_time, pressure_level_name, time_name, vertical_weights, constants
+        data, reduce_vertical, reduce_time, pressure_level_name, time_name, vertical_weights, constants
     )
 
     if spherical_harmonic:
