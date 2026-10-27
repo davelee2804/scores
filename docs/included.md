@@ -621,6 +621,7 @@ It is divided into the following sections: [continuous](#continuous), [probabili
 * - Vector Field Power Spectra
   - [API](api.md#scores.dynamics.power_spectra_vector)
   - [Tutorial](project:./tutorials/Power_Spectra.md)
+  - [Durran et al. (2017)](https://doi.org/10.1175/MWR-D-17-0056.1)
 ```
 
 ## Statistical Tests

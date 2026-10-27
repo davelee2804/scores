@@ -242,6 +242,10 @@ def power_spectra_vector(
     Returns:
         ds: an Xarray Dataset containing the square of the amplitudes of the input data transformed into frequency
             space, and the corresponding frequencies.
+
+    References:
+        - Durran, D., Weyn, J. A., & Menchaca, M. Q. (2017). Practical Considerations for Computing Dimensional
+          Spectra from Gridded Data, *Mon. Wea. Rev.*, 145, 3901-3910. https://doi.org/10.1175/MWR-D-17-0056.1
     """
 
     _data = _reduce_dims(
